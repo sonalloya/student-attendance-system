@@ -31,9 +31,7 @@ def user_role(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def my_attendance(request):
-    """
-    Student can view their own attendance.
-    """
+    """Student can view their own attendance."""
     if not hasattr(request.user, 'student_profile'):
         return Response({"detail": "You are not a student."}, status=403)
 
@@ -45,9 +43,7 @@ def my_attendance(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def teacher_mark_attendance(request):
-    """
-    Teacher can mark attendance for students.
-    """
+    """Teacher can mark attendance for students."""
     if not hasattr(request.user, 'teacher_profile'):
         return Response({"detail": "You are not authorized to mark attendance."}, status=403)
 
@@ -77,6 +73,7 @@ class StudentViewSet(viewsets.ModelViewSet):
     def by_class(self, request):
         student_class = request.query_params.get('student_class')
         if not student_class:
+        
             return Response({'error': 'student_class required'}, status=status.HTTP_400_BAD_REQUEST)
         students = Student.objects.filter(student_class=student_class)
         serializer = StudentSerializer(students, many=True)
@@ -88,13 +85,19 @@ class StudentViewSet(viewsets.ModelViewSet):
         attendance = Attendance.objects.filter(student=student)
         serializer = AttendanceSerializer(attendance, many=True)
         return Response(serializer.data)
-     
+      
     @action(detail=True, methods=['get'])
     def report(self, request, pk=None):
         """Generate a PDF attendance report for this student"""
         student = self.get_object()
-        attendance_records = Attendance.objects.filter(student=student).order_by('date')
+        attendance_records = self.get_attendance_records(student)
+        pdf_buffer = self.generate_pdf(student, attendance_records)
+        return HttpResponse(pdf_buffer, content_type='application/pdf')
 
+    def get_attendance_records(self, student):
+        return Attendance.objects.filter(student=student).order_by('date')
+
+    def generate_pdf(self, student, attendance_records):
         # Create PDF in memory
         buffer = BytesIO()
         p = canvas.Canvas(buffer, pagesize=A4)
@@ -137,11 +140,9 @@ class StudentViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{student.rollno}_attendance_report.pdf"'
         return response
 
+
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [AllowAny]
     # permission_class = [IsAuthenticated]
-
-    
-
